@@ -1,8 +1,16 @@
-import '../styles/globals.css'
-import type { AppProps } from 'next/app'
+import '../styles/globals.css';
+import type { AppProps } from 'next/app';
+import { ThemeProvider } from 'next-themes';
+import Layout from '../components/layer/layout';
 
-function MyApp({ Component, pageProps }: AppProps) {
-  return <Component {...pageProps} />
-}
+export default function MyApp({ Component, pageProps }: AppProps) {
+  
 
-export default MyApp
+  return(
+    <ThemeProvider enableSystem={true} attribute="class">
+      <Layout>
+        <Component {...pageProps} />
+      </Layout>
+    </ThemeProvider>
+  ) 
+};
