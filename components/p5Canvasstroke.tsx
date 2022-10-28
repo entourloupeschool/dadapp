@@ -36,15 +36,10 @@ for (let i = 1; i < 4; i++) {
     shuffleOrderOptions.push({key: i, value: i, label: i.toString()});
 };
 
-type PointWAngle = {
+type Point = {
     x: number;
     y: number;
     angle: number;
-};
-
-type PointWColor = {
-    x: number;
-    y: number;
     color: number[];
 };
 
@@ -73,13 +68,13 @@ function randGauss(min:number, max:number, skew=1) {
 };
 
 // new Point not in the image ? -> new random point
-function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): PointWAngle {
-    const angle = randGauss(previousAngle-openness, previousAngle+openness);
-    const angleRad = angle * (Math.PI/180);
+function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): any{
+    const nangle = randGauss(previousAngle-openness, previousAngle+openness);
+    const angleRad = nangle * (Math.PI/180);
     const rdmx = Math.floor(x + Math.cos(angleRad) * Math.random() * distanceBetweenPoints);
     const rdmy = Math.floor(y + Math.sin(angleRad) * Math.random() * distanceBetweenPoints);
 
-    return {x: rdmx, y: rdmy, angle: angle};
+    return {x: rdmx, y: rdmy, angle: nangle};
 };
 
 const traceurs: any[]   = [];
@@ -143,49 +138,49 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             p.setup = () => {
                 img.resize(0, canvasImgRef.current!.clientHeight);
                 p.createCanvas(img.width, img.height);
-
                 p.image(img, 0, 0);
-
                 p.loadPixels();
-                
-                setTimeout(saveTraceurs, timeBetweenDraw);
+
+                // insert a first point in traceurs then base on it
+                const initPoint =  toNeighbouringPoint(img.width/2, img.height/2, initAngle, openness, distanceBetweenPoints);
+                traceurs.push(
+                    {
+                        x: initPoint.x,
+                        y: initPoint.y,
+                        color: p.get(initPoint.x, initPoint.y),
+                        angle: initPoint.angle
+                    }
+                );
+                setTimeout(() => {saveTraceurs();}, timeBetweenDraw);
             };
             
-            let nPoint: PointWAngle;
-
             function saveTraceurs(): void {
-                if (nPoint !== undefined) {
+                const lastPoint = traceurs[traceurs.length - 1];
+                let nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, openness, distanceBetweenPoints);
+                let threshold = 0;
+                while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
+                    console.log('entered while');
+                    nPoint.angle += Math.random() * 360;
                     nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
-                    let threshold = 0;
-                    while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
-                        console.log('entered while');
-                        nPoint.angle += Math.random() * 360;
-                        nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
-                        
-                        if (threshold++ > 1000) {
-                            nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, openness, distanceBetweenPoints);
-                            break;
-                        };
-
+                    
+                    if (threshold++ > 1000) {
+                        nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, openness, distanceBetweenPoints);
+                        break;
                     };
 
-                }else{
-                    nPoint = toNeighbouringPoint(img.width/2, img.height/2, initAngle, openness, distanceBetweenPoints);
                 };
 
-                if ( !traceurs.includes(nPoint) ) {
-                    traceurs.push(
-                        {
-                            x: nPoint.x,
-                            y: nPoint.y,
-                            color: p.get(nPoint.x, nPoint.y)
-                        }
-                    );
-                    // console.log(traceurs);
-                }
 
+                traceurs.push(
+                    {
+                        x: nPoint.x,
+                        y: nPoint.y,
+                        color: p.get(nPoint.x, nPoint.y),
+                        angle: nPoint.angle
+                    }
+                );
 
-                setTimeout(saveTraceurs, timeBetweenDraw);
+                setTimeout(() => {saveTraceurs();}, timeBetweenDraw);
             };
 
         };
@@ -232,12 +227,12 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 ctx.stroke();
             };
 
-            function drawPairwise(current: PointWColor, next: PointWColor): void {
+            function drawPairwise(current: Point, next: Point): void {
                 // console.log('cuurent', current, 'next', next);
                 gradientLine(ctx, current.x, current.y, next.x, next.y, current.color, next.color);
             };
 
-            function pairwise(arr: Array<PointWColor>, func: Function, skips: number = 1): void{
+            function pairwise(arr: Array<Point>, func: Function, skips: number = 1): void{
                 for(var i=0; i < arr.length - skips; i++){
                     func(arr[i], arr[i + skips])
                 };
@@ -245,8 +240,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             
             function drawTraceurs(): void {
                 p.background(bkgrdColor);
-                p.noStroke();
-
                 if ( traceurs[0] !== undefined ) {
                     pairwise(traceurs, drawPairwise, shuffleOrder);
 

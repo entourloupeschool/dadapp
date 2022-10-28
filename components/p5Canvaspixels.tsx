@@ -5,17 +5,11 @@ import styles from '../styles/Home.module.css';
 import p5Types from 'p5';
 import { useRouter } from 'next/router';
 
-const margeImdDraw = 5;
-
 type colorType = {
     value: string;
     label: string;
     rgb: string;
 };
-
-function getRandomArbitraryInterval(min: number, max: number) {
-    return Math.floor(Math.random() * (max - min) + min);
-  }
 
 const colors: colorType[] = [
     {value: 'red', label: 'Red', rgb: 'rgb(255, 0, 0)'},
@@ -31,10 +25,23 @@ const colors: colorType[] = [
     {value: 'pink', label: 'Pink', rgb: 'rgb(255, 153, 204)'}
 ];
 
+
+const shuffleOrderOptions: {key: number, value: number, label: string}[] = [];
 const weightStroke: {value: number, label: number}[] = [];
 
 for (let i = 1; i < 18; i++) {
     weightStroke.push({value: i, label: i});
+};
+
+for (let i = 1; i < 4; i++) {
+    shuffleOrderOptions.push({key: i, value: i, label: i.toString()});
+};
+
+type Point = {
+    x: number;
+    y: number;
+    angle: number;
+    color: number[];
 };
 
 interface P5WrapperProps {
@@ -59,10 +66,19 @@ function randGauss(min:number, max:number, skew=1) {
       num += min // offset to min
     }
     return num
-  }
+};
 
+// new Point not in the image ? -> new random point
+function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): any {
+    const angle = randGauss(previousAngle-openness, previousAngle+openness);
+    const angleRad = angle * (Math.PI/180);
+    const rdmx = Math.floor(x + Math.cos(angleRad) * Math.random() * distanceBetweenPoints);
+    const rdmy = Math.floor(y + Math.sin(angleRad) * Math.random() * distanceBetweenPoints);
 
+    return {x: rdmx, y: rdmy, angle: angle};
+};
 
+const traceurs: any[]   = [];
 
 /**
  * A wrapper component for running P5 sketches. Handles rendering and cleanup.
@@ -73,15 +89,37 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
     const canvasDrawingRef = useRef<HTMLDivElement>(null);
 
     const [ bkgrdColor, setBkgrdColor ] = useState<string>(colors[6].rgb);
+    const [ strokeWeight, setStrokeWeight ] = useState<number>(4);
+    const [ timeBetweenDraw, setTimeBetweenDraw ] = useState<number>(100);
+    const [ distanceBetweenPoints, setDistanceBetweenPoints ] = useState<number>(50);
+    const [ openness, setOpenness ] = useState<number>(60);
 
     const handleChangeBColor = (e: ChangeEvent<HTMLSelectElement>) => {
         const value = e.target.value;
         setBkgrdColor(value);
     };
-    
+
+    const handleChangeSWeight = (e: ChangeEvent<HTMLSelectElement>) => {
+        const value = e.target.value;
+        setStrokeWeight(parseInt(value));
+    };
+
+    const handleChangeTimeBetweenDraw = () => {
+        const value = parseFloat((document.getElementById('time') as HTMLInputElement).value);
+        setTimeBetweenDraw(value * 1000);
+    };
+
+    const handleChangeDistanceBetweenPoints = () => {
+        const value = parseFloat((document.getElementById('distance') as HTMLInputElement).value);
+        setDistanceBetweenPoints(value);
+    };
+
+    const handleChangeOpenness = () => {
+        const value = parseFloat((document.getElementById('openness') as HTMLInputElement).value);
+        setOpenness(value);
+    };
 
     useEffect(() => {
-
         const sketchImg = (p: p5Types) => {
             let img: any;
 
@@ -91,63 +129,57 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             };
 
             const initAngle = 0;
-            const openness = 80;
-            const strikeSize = 2;
-            const distance = 10;
 
             p.setup = () => {
-                p.pixelDensity(1);
-                p.smooth();
                 img.resize(0, canvasImgRef.current!.clientHeight);
-                p.createCanvas(img.width * 2 , img.height * 2);
-
-                p.image(img, 0, img.height/2);
+                p.createCanvas(img.width, img.height);
+                p.image(img, 0, 0);
                 p.loadPixels();
+
+                // insert a first point in traceurs then base on it
+                const initPoint =  toNeighbouringPoint(img.width/2, img.height/2, initAngle, openness, distanceBetweenPoints);
+                traceurs.push(
+                    {
+                        x: initPoint.x,
+                        y: initPoint.y,
+                        color: p.get(initPoint.x, initPoint.y),
+                        angle: initPoint.angle
+                    }
+                );
+
+                setTimeout(() => {saveTraceurs();}, timeBetweenDraw);
             };
             
-
-            // new Point not in the image ? -> new random point
-            function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number): any {
-
-                const angle = randGauss(previousAngle-openness, previousAngle+openness);
-                const rdmx = Math.floor(x + Math.cos(angle) * Math.random() * distance);
-                const rdmy = Math.floor(y + Math.sin(angle) * Math.random() * distance);
-            
-                return [rdmx, rdmy, angle];
-            };
-
-
-            let nPoint: any;
-
-            p.draw = () => {
-                if (nPoint !== undefined) {
-                    nPoint = toNeighbouringPoint(nPoint[0], nPoint[1],  nPoint[2], openness);
-
-                    while (nPoint[0] < 0 || nPoint[0] > img.width || nPoint[1] > img.height || nPoint[1] < 0) {
-                        console.log('entered while');
-                        nPoint[2] += Math.random() * 180;
-                        nPoint = toNeighbouringPoint(nPoint[0], nPoint[1],  nPoint[2], openness);
+            function saveTraceurs(): void {
+                const lastPoint = traceurs[traceurs.length - 1];
+                let nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, openness, distanceBetweenPoints);
+                let threshold = 0;
+                while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
+                    console.log('entered while');
+                    nPoint.angle += Math.random() * 360;
+                    nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
+                    
+                    if (threshold++ > 1000) {
+                        nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, openness, distanceBetweenPoints);
+                        break;
                     };
 
-                }else{
-                    nPoint = toNeighbouringPoint(img.width/2, img.height/2, initAngle, openness);
-                };
-                
-                console.log('point', nPoint);
-                const pixcolor = p.get(nPoint[0], nPoint[1]);
-                console.log('color', pixcolor);
-                for (let i = -strikeSize; i <= strikeSize; i++) {
-                    for (let j = -strikeSize; j <= strikeSize; j++) {
-                        p.set(nPoint[0]+i + img.width, nPoint[1]+j, pixcolor);
-                    };
                 };
 
-                p.updatePixels();
+                if (!traceurs.includes(nPoint)) {
+                    traceurs.push(
+                        {
+                            x: nPoint.x,
+                            y: nPoint.y,
+                            color: p.get(nPoint.x, nPoint.y),
+                            angle: nPoint.angle
+                        }
+                    );
+                };
+
+                setTimeout(() => {saveTraceurs();}, timeBetweenDraw);
             };
         };
-
-
-
         const canvasImg = new p5(sketchImg, canvasImgRef.current!);
 
         if (autoResizeToWindow) {
@@ -161,30 +193,111 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasImg.remove();
         };
 
-    }, [ autoResizeToWindow, router.events, bkgrdColor ]);
+    }, [ router.events, timeBetweenDraw, distanceBetweenPoints, openness, strokeWeight, timeBetweenDraw ]);
+
+    useEffect(() => {
+        const sketchDrawing = (p: p5Types) => {
+            let img: any;
+            let ctx : any;
+
+            //See annotations in JS for more information
+            p.preload = () => {
+                img = p.loadImage('./p5images/zoe.jpg');
+            };
+
+            p.setup = () => {
+                img.resize(0, canvasImgRef.current!.clientHeight);
+                p.createCanvas(img.width, img.height);
+
+                setTimeout(drawTraceurs, timeBetweenDraw);
+            };
+            
+            function drawTraceurs(): void {
+                p.background(bkgrdColor);
+                if ( traceurs[0] !== undefined ) {
+                    traceurs.map((traceur: Point) => {
+                        for (let i = -strokeWeight; i < strokeWeight; i++) {
+                            for (let j = -strokeWeight; j < strokeWeight; j++) {
+                                p.set(traceur.x + i, traceur.y + j, traceur.color);
+                            };
+                        }
+                    });
+                };
+                p.updatePixels();
+                setTimeout(drawTraceurs, timeBetweenDraw);
+            };
+
+        };
+
+        const canvasDrawing = new p5(sketchDrawing, canvasDrawingRef.current!);
+
+
+        return () => {
+            canvasDrawing.remove();
+        };
+
+    }, [ router.events, bkgrdColor, strokeWeight, timeBetweenDraw, distanceBetweenPoints ]);
 
 
     return (
         <>
-        <div ref={canvasImgRef} className={styles.moduleContainer} style={{height: '60vh', marginTop: '1rem'}}>
-        </div>
-
-        <div className={styles.setInfoContainerSub} style={{display: 'flex', marginTop: '1rem', justifyContent: 'space-around'}}>
-            <div className={styles.card}>
-                <div>
-                    <label htmlFor='backgroundcolor'>
-                        background color :
-                    <select name='backgroundcolor' id='backgroundcolor' value={bkgrdColor} onChange={handleChangeBColor} style={{marginLeft: '0.5rem'}}>
-                        {colors.map((color: colorType): JSX.Element => {
-                            return (
-                                <option key={color.value} value={color.rgb}>{color.label}</option>
-                            );
-                        })}
-                    </select>
-                    </label>
+        <section>
+            <div className={styles.gridedContainer}>
+                <div ref={canvasImgRef} className={styles.canvasContainer}>
                 </div>
-            </div>         
-        </div>
+                <div ref={canvasDrawingRef} className={styles.canvasContainer}>
+                </div>
+                <div className={styles.setInfoContainerSub} style={{display: 'flex', marginTop: '1rem', justifyContent: 'space-around'}}>
+                    <div className={styles.card}>
+                        <div>
+                            <label htmlFor='backgroundcolor'>
+                                background color :
+                            <select name='backgroundcolor' id='backgroundcolor' value={bkgrdColor} onChange={handleChangeBColor} style={{marginLeft: '0.5rem'}}>
+                                {colors.map((color: colorType): JSX.Element => {
+                                    return (
+                                        <option key={color.value} value={color.rgb}>{color.label}</option>
+                                    );
+                                })}
+                            </select>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='weight'>
+                                stroke weight :
+                            <select name='weight' id='weight' value={strokeWeight} onChange={handleChangeSWeight} style={{marginLeft: '0.5rem'}}>
+                                {weightStroke.map((weight: {value: number, label: number}): JSX.Element => {
+                                    return (
+                                        <option key={weight.value} value={weight.value}>{weight.label}</option>
+                                    );
+                                })}
+                            </select>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='time'>
+                                time between draw (s):
+                                <input type='number' name='time' id='time' className="px-4 py-3 w-full"/>
+                                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeTimeBetweenDraw()}>set</button>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='distance'>
+                                max possible vector length :
+                                <input type='number' name='distance' id='distance' className="px-4 py-3 w-full"/>
+                                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeDistanceBetweenPoints()}>set</button>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='openness'>
+                                openness (°):
+                                <input type='number' name='openness' id='openness' className="px-4 py-3 w-full"/>
+                                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeOpenness()}>set</button>
+                            </label>
+                        </div>
+                    </div>         
+                </div>
+            </div>
+        </section>
         </>
     );
 

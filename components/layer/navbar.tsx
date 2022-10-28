@@ -11,8 +11,12 @@ interface NavItem {
 
 const NAV_ITEMS: Array<NavItem> = [
     {
-        label: 'DrawingPage',
-        href: '/p5canvaspage',
+        label: 'Drawing<stroke>',
+        href: '/p5canvasstrokepage',
+    },
+    {
+        label: 'Drawing<pixel>',
+        href: '/p5canvaspixelpage',
     },
 
 ];
