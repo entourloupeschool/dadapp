@@ -36,6 +36,18 @@ for (let i = 1; i < 4; i++) {
     shuffleOrderOptions.push({key: i, value: i, label: i.toString()});
 };
 
+type PointWAngle = {
+    x: number;
+    y: number;
+    angle: number;
+};
+
+type PointWColor = {
+    x: number;
+    y: number;
+    color: number[];
+};
+
 interface P5WrapperProps {
     /** If true, the canvas will resize to window whenever the window is resized */
     autoResizeToWindow?: boolean;
@@ -60,13 +72,17 @@ function randGauss(min:number, max:number, skew=1) {
     return num
 };
 
-function pairwise(arr: Array<any>, func: Function, skips: any){
-    skips = skips || 1;
-    for(var i=0; i < arr.length - skips; i++){
-        func(arr[i], arr[i + skips])
-    }
-}
+// new Point not in the image ? -> new random point
+function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): PointWAngle {
+    const angle = randGauss(previousAngle-openness, previousAngle+openness);
+    const angleRad = angle * (Math.PI/180);
+    const rdmx = Math.floor(x + Math.cos(angleRad) * Math.random() * distanceBetweenPoints);
+    const rdmy = Math.floor(y + Math.sin(angleRad) * Math.random() * distanceBetweenPoints);
 
+    return {x: rdmx, y: rdmy, angle: angle};
+};
+
+const traceurs: any[]   = [];
 
 /**
  * A wrapper component for running P5 sketches. Handles rendering and cleanup.
@@ -78,9 +94,9 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
     const [ bkgrdColor, setBkgrdColor ] = useState<string>(colors[6].rgb);
     const [ strokeWeight, setStrokeWeight ] = useState<number>(4);
-    const [ timeBetweenDraw, setTimeBetweenDraw ] = useState<number>(200);
-    const [ distanceBetweenPoints, setDistanceBetweenPoints ] = useState<number>(30);
-    const [ openness, setOpenness ] = useState<number>(20);
+    const [ timeBetweenDraw, setTimeBetweenDraw ] = useState<number>(100);
+    const [ distanceBetweenPoints, setDistanceBetweenPoints ] = useState<number>(50);
+    const [ openness, setOpenness ] = useState<number>(60);
     const [ shuffleOrder, setShuffleOrder ] = useState<number>(1);
 
     const handleChangeBColor = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -112,10 +128,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         const value = parseFloat((document.getElementById('shuffle') as HTMLInputElement).value);
         setShuffleOrder(value);
     };
-
-
-
-    const traceurs: any[]   = [];
     
     useEffect(() => {
         const sketchImg = (p: p5Types) => {
@@ -136,45 +148,44 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
                 p.loadPixels();
                 
-                setTimeout(drawTraceurs, timeBetweenDraw);
+                setTimeout(saveTraceurs, timeBetweenDraw);
             };
             
+            let nPoint: PointWAngle;
 
-            // new Point not in the image ? -> new random point
-            function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): any {
-
-                const angle = randGauss(previousAngle-openness, previousAngle+openness);
-                const rdmx = Math.floor(x + Math.cos(angle) * Math.random() * distanceBetweenPoints);
-                const rdmy = Math.floor(y + Math.sin(angle) * Math.random() * distanceBetweenPoints);
-            
-                return [rdmx, rdmy, angle];
-            };
-
-            let nPoint: any;
-
-            function drawTraceurs(): void {
+            function saveTraceurs(): void {
                 if (nPoint !== undefined) {
-                    nPoint = toNeighbouringPoint(nPoint[0], nPoint[1],  nPoint[2], openness, distanceBetweenPoints);
-
-                    if (nPoint[0] < 0 || nPoint[0] > img.width || nPoint[1] > img.height || nPoint[1] < 0) {
+                    nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
+                    let threshold = 0;
+                    while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
                         console.log('entered while');
-                        nPoint[2] += Math.random() * 360;
-                        nPoint = toNeighbouringPoint(img.width/2, img.height/2,  nPoint[2], openness, distanceBetweenPoints);
+                        nPoint.angle += Math.random() * 360;
+                        nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
+                        
+                        if (threshold++ > 1000) {
+                            nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, openness, distanceBetweenPoints);
+                            break;
+                        };
+
                     };
 
                 }else{
                     nPoint = toNeighbouringPoint(img.width/2, img.height/2, initAngle, openness, distanceBetweenPoints);
                 };
 
-                traceurs.push(
-                    {
-                        x: nPoint[0],
-                        y: nPoint[1],
-                        color: p.get(nPoint[0], nPoint[1])
-                    }
-                );
+                if ( !traceurs.includes(nPoint) ) {
+                    traceurs.push(
+                        {
+                            x: nPoint.x,
+                            y: nPoint.y,
+                            color: p.get(nPoint.x, nPoint.y)
+                        }
+                    );
+                    // console.log(traceurs);
+                }
 
-                setTimeout(drawTraceurs, timeBetweenDraw);
+
+                setTimeout(saveTraceurs, timeBetweenDraw);
             };
 
         };
@@ -185,11 +196,12 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasImg.remove();
         };
 
-    }, [ autoResizeToWindow, router.events, bkgrdColor, strokeWeight, timeBetweenDraw, distanceBetweenPoints, openness, shuffleOrder ]);
+    }, [ router.events, timeBetweenDraw, distanceBetweenPoints, openness, strokeWeight, shuffleOrder, timeBetweenDraw ]);
 
     useEffect(() => {
         const sketchDrawing = (p: p5Types) => {
             let img: any;
+            let ctx : any;
 
             //See annotations in JS for more information
             p.preload = () => {
@@ -199,25 +211,47 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             p.setup = () => {
                 img.resize(0, canvasImgRef.current!.clientHeight);
                 p.createCanvas(img.width, img.height);
+                ctx = p.drawingContext;
 
+                setTimeout(drawTraceurs, timeBetweenDraw);
+            };
+
+            function gradientLine(ctx: any, x1: number, y1: number, x2: number, y2: number, c1: number[], c2: number[]) {
+                const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+                // console.log(p.color(c1));
+                const currentColor = p.color(c1);
+                const nextColor = p.color(c2);
+
+                gradient.addColorStop(0, currentColor);
+                gradient.addColorStop(1, nextColor);
+                ctx.strokeStyle = gradient;
+                p.strokeWeight(strokeWeight);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            };
+
+            function drawPairwise(current: PointWColor, next: PointWColor): void {
+                // console.log('cuurent', current, 'next', next);
+                gradientLine(ctx, current.x, current.y, next.x, next.y, current.color, next.color);
+            };
+
+            function pairwise(arr: Array<PointWColor>, func: Function, skips: number = 1): void{
+                for(var i=0; i < arr.length - skips; i++){
+                    func(arr[i], arr[i + skips])
+                };
             };
             
-            p.draw = () => {
+            function drawTraceurs(): void {
                 p.background(bkgrdColor);
-                // traceurs.forEach((traceur) => {
-                //     p.stroke(traceur.color);
-                //     p.strokeWeight(strokeWeight);
-                //     p.point(traceur.x, traceur.y);
-                // });
+                p.noStroke();
 
-                function drawPairwise(current: any, next: any): void {
-                    p.stroke(current.color);
-                    p.strokeWeight(strokeWeight);
-                    p.line(current.x, current.y, next.x, next.y);
+                if ( traceurs[0] !== undefined ) {
+                    pairwise(traceurs, drawPairwise, shuffleOrder);
+
+                    setTimeout(drawTraceurs, timeBetweenDraw);
                 };
-
-
-                pairwise(traceurs, drawPairwise, shuffleOrder);
             };
 
         };
@@ -228,78 +262,80 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         return () => {
             canvasDrawing.remove();
         };
-    }, [ autoResizeToWindow, router.events, bkgrdColor, strokeWeight, shuffleOrder ]);
+
+    }, [ router.events, bkgrdColor, strokeWeight, shuffleOrder, timeBetweenDraw, distanceBetweenPoints ]);
 
     return (
         <>
         <section>
-            <div ref={canvasImgRef} style={{height: '60vh', marginTop: '1rem'}}>
-            </div>
-            <div ref={canvasDrawingRef} style={{height: '60vh', marginTop: '1rem'}}>
-            </div>
-            <div className={styles.setInfoContainerSub} style={{display: 'flex', marginTop: '1rem', justifyContent: 'space-around'}}>
-                <div className={styles.card}>
-                    <div>
-                        <label htmlFor='backgroundcolor'>
-                            background color :
-                        <select name='backgroundcolor' id='backgroundcolor' value={bkgrdColor} onChange={handleChangeBColor} style={{marginLeft: '0.5rem'}}>
-                            {colors.map((color: colorType): JSX.Element => {
-                                return (
-                                    <option key={color.value} value={color.rgb}>{color.label}</option>
-                                );
-                            })}
-                        </select>
-                        </label>
-                    </div>
-                    <div>
-                        <label htmlFor='weight'>
-                            stroke weight :
-                        <select name='weight' id='weight' value={strokeWeight} onChange={handleChangeSWeight} style={{marginLeft: '0.5rem'}}>
-                            {weightStroke.map((weight: {value: number, label: number}): JSX.Element => {
-                                return (
-                                    <option key={weight.value} value={weight.value}>{weight.label}</option>
-                                );
-                            })}
-                        </select>
-                        </label>
-                    </div>
-                    <div>
-                        <label htmlFor='time'>
-                            time between draw (s):
-                            <input type='number' name='time' id='time' style={{marginLeft: '0.5rem'}}/>
-                            <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeTimeBetweenDraw()}>set</button>
-                        </label>
-                    </div>
-                    <div>
-                        <label htmlFor='distance'>
-                            max possible length between points :
-                            <input type='number' name='distance' id='distance' style={{marginLeft: '0.5rem'}}/>
-                            <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeDistanceBetweenPoints()}>set</button>
-                        </label>
-                    </div>
-                    <div>
-                        <label htmlFor='openness'>
-                            openness (rad):
-                            <input type='number' name='openness' id='openness' style={{marginLeft: '0.5rem'}}/>
-                            <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeOpenness()}>set</button>
-                        </label>
-                    </div>
-                    <div>
-                        <label htmlFor='shuffle'>
-                            shuffle order :
-                        <select name='shuffle' id='shuffle' value={shuffleOrder} onChange={handleChangeShuffleOrder} style={{marginLeft: '0.5rem'}}>
-                            {shuffleOrderOptions.map((option: {value: number, label: string}): JSX.Element => {
-                                return (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                );
-                            })}
-                        </select>
-                        </label>
-                    </div>
-                </div>         
+            <div className={styles.gridedContainer}>
+                <div ref={canvasImgRef} className={styles.canvasContainer}>
+                </div>
+                <div ref={canvasDrawingRef} className={styles.canvasContainer}>
+                </div>
+                <div className={styles.setInfoContainerSub} style={{display: 'flex', marginTop: '1rem', justifyContent: 'space-around'}}>
+                    <div className={styles.card}>
+                        <div>
+                            <label htmlFor='backgroundcolor'>
+                                background color :
+                            <select name='backgroundcolor' id='backgroundcolor' value={bkgrdColor} onChange={handleChangeBColor} style={{marginLeft: '0.5rem'}}>
+                                {colors.map((color: colorType): JSX.Element => {
+                                    return (
+                                        <option key={color.value} value={color.rgb}>{color.label}</option>
+                                    );
+                                })}
+                            </select>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='weight'>
+                                stroke weight :
+                            <select name='weight' id='weight' value={strokeWeight} onChange={handleChangeSWeight} style={{marginLeft: '0.5rem'}}>
+                                {weightStroke.map((weight: {value: number, label: number}): JSX.Element => {
+                                    return (
+                                        <option key={weight.value} value={weight.value}>{weight.label}</option>
+                                    );
+                                })}
+                            </select>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='time'>
+                                time between draw (s):
+                                <input type='number' name='time' id='time' className="px-4 py-3 w-full"/>
+                                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeTimeBetweenDraw()}>set</button>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='distance'>
+                                max possible vector length :
+                                <input type='number' name='distance' id='distance' className="px-4 py-3 w-full"/>
+                                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeDistanceBetweenPoints()}>set</button>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='openness'>
+                                openness (°):
+                                <input type='number' name='openness' id='openness' className="px-4 py-3 w-full"/>
+                                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full" onClick={() => handleChangeOpenness()}>set</button>
+                            </label>
+                        </div>
+                        <div>
+                            <label htmlFor='shuffle'>
+                                shuffle order :
+                            <select name='shuffle' id='shuffle' value={shuffleOrder} onChange={handleChangeShuffleOrder} style={{marginLeft: '0.5rem'}}>
+                                {shuffleOrderOptions.map((option: {value: number, label: string}): JSX.Element => {
+                                    return (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    );
+                                })}
+                            </select>
+                            </label>
+                        </div>
+                    </div>         
+                </div>
             </div>
         </section>
-
         </>
     );
 
