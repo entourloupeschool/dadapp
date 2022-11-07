@@ -256,7 +256,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasImg.remove();
         };
 
-    }, [ router.events ]);
+    }, [ router.events, sketchImg ]);
 
     const sketchDrawing = (p: p5Types) => {
         let bChanged = false;
@@ -377,7 +377,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasDrawing.remove();
         };
 
-    }, [ router.events ]);
+    }, [ router.events, sketchDrawing ]);
 
     return (
         <>

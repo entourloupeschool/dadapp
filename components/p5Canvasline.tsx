@@ -202,7 +202,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasImg.remove();
         };
 
-    }, [ router.events, timeBetweenDraw, distanceBetweenPoints, openness, strokeWeight, shuffleOrder, timeBetweenDraw, last ]);
+    }, [ router.events, timeBetweenDraw, distanceBetweenPoints, openness, strokeWeight, shuffleOrder, last ]);
 
     useEffect(() => {
         const sketchDrawing = (p: p5Types) => {
