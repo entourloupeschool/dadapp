@@ -3,9 +3,9 @@ import Head from 'next/head';
 import styles from '../styles/Home.module.css';
 import dynamic from 'next/dynamic';
 
-const pageTitle = 'Drawing<stroke>Page';
+const pageTitle = 'Drawing<curve>Page';
 
-const DynamicP5Wrapper = dynamic(() => import('../components/p5Canvasstroke'), {
+const DynamicP5Wrapper = dynamic(() => import('../components/p5Canvascurve'), {
     ssr: false,
 });
 
@@ -22,9 +22,8 @@ const DrawingPage: NextPage = () => {
             This is the p5 drawing
         </h1>
         <DynamicP5Wrapper />
-
       </>
     )
-  }
+  };
   
   export default DrawingPage

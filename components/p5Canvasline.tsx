@@ -87,6 +87,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
     const canvasImgRef = useRef<HTMLDivElement>(null);
     const canvasDrawingRef = useRef<HTMLDivElement>(null);
 
+    const [ last, setLast ] = useState<boolean>(true);
     const [ bkgrdColor, setBkgrdColor ] = useState<string>(colors[6].rgb);
     const [ strokeWeight, setStrokeWeight ] = useState<number>(4);
     const [ timeBetweenDraw, setTimeBetweenDraw ] = useState<number>(100);
@@ -123,6 +124,10 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         const value = parseFloat((document.getElementById('shuffle') as HTMLInputElement).value);
         setShuffleOrder(value);
     };
+
+    const handleMode = () => {
+        setLast(!last);
+    };
     
     useEffect(() => {
         const sketchImg = (p: p5Types) => {
@@ -155,20 +160,26 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             };
             
             function saveTraceurs(): void {
-                const lastPoint = traceurs[traceurs.length - 1];
-                let nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, openness, distanceBetweenPoints);
-                let threshold = 0;
-                while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
-                    console.log('entered while');
-                    nPoint.angle += Math.random() * 360;
-                    nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
-                    
-                    if (threshold++ > 1000) {
-                        nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, openness, distanceBetweenPoints);
-                        break;
+                let nPoint: Point;
+                if(last){
+                    const lastPoint = traceurs[traceurs.length - 1];
+                    nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, openness, distanceBetweenPoints);
+                    let threshold = 0;
+                    while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
+                        console.log('entered while');
+                        nPoint.angle += Math.random() * 360;
+                        nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, openness, distanceBetweenPoints);
+                        
+                        if (threshold++ > 1000) {
+                            nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, openness, distanceBetweenPoints);
+                            break;
+                        };
+    
                     };
-
+                }else{
+                    nPoint = toNeighbouringPoint(Math.random() * img.width, Math.random() * img.height, Math.random() * 360, openness, distanceBetweenPoints);
                 };
+
 
 
                 traceurs.push(
@@ -191,7 +202,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasImg.remove();
         };
 
-    }, [ router.events, timeBetweenDraw, distanceBetweenPoints, openness, strokeWeight, shuffleOrder, timeBetweenDraw ]);
+    }, [ router.events, timeBetweenDraw, distanceBetweenPoints, openness, strokeWeight, shuffleOrder, timeBetweenDraw, last ]);
 
     useEffect(() => {
         const sketchDrawing = (p: p5Types) => {
@@ -246,7 +257,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     setTimeout(drawTraceurs, timeBetweenDraw);
                 };
             };
-
         };
 
         const canvasDrawing = new p5(sketchDrawing, canvasDrawingRef.current!);
@@ -256,7 +266,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasDrawing.remove();
         };
 
-    }, [ router.events, bkgrdColor, strokeWeight, shuffleOrder, timeBetweenDraw, distanceBetweenPoints ]);
+    }, [ router.events, bkgrdColor, strokeWeight, shuffleOrder, timeBetweenDraw, distanceBetweenPoints, last ]);
 
     return (
         <>
@@ -268,6 +278,13 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 </div>
                 <div className={styles.setInfoContainerSub} style={{display: 'flex', marginTop: '1rem', justifyContent: 'space-around'}}>
                     <div className={styles.card}>
+                        <div>
+                            <label htmlFor='lastMode'>
+                                Picking mode (last or random) :
+                                <input id='lastMode' type='checkbox' onChange={() => {handleMode();}}>
+                                </input>
+                            </label>
+                        </div>
                         <div>
                             <label htmlFor='backgroundcolor'>
                                 background color :
