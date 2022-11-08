@@ -11,18 +11,9 @@ interface NavItem {
 
 const NAV_ITEMS: Array<NavItem> = [
     {
-        label: 'Drawing<line>',
-        href: '/p5canvaslinepage',
-    },
-    {
-        label: 'Drawing<pixel>',
+        label: '<Drawing>',
         href: '/p5canvaspixelpage',
     },
-    {
-        label: 'Drawing<curve>',
-        href: '/p5canvascurvepage',
-    }
-
 ];
 
 export default function NavbarCustom():JSX.Element{

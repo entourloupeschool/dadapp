@@ -37,9 +37,10 @@ for (let i = 1; i < 4; i++) {
 };
 
 const timeBetweenDrawings = Math.floor(Math.random() * 700) + 1;
-const distanceBetweenPoints = Math.floor(Math.random() * 70);
+const distanceBetweenPointsInit = Math.floor(Math.random() * 390)+1;
 const initAngle = Math.floor(Math.random() * 360);
-const openness = Math.floor(Math.random() * 30) + 1;
+const opennessInit = Math.floor(Math.random() * 350) + 1;
+const weightStrokeInit: number = Math.floor(Math.random() * 16) + 1;
 
 const CPDposition = {
     x: 100,
@@ -86,23 +87,27 @@ function getCorrectAngle(angle: number): number {
     return angle;
 };
 
+function getRadFromAngle(angle: number): number {
+    return angle * (Math.PI/180);
+};
+
 // new Point not in the image ? -> new random point
 function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): any {
     let angle = Math.floor(randGauss(previousAngle-openness, previousAngle+openness) * 100) / 100;
     if (angle > 360) {
        angle = getCorrectAngle(angle); 
     };
-    const angleRad = angle * (Math.PI/180);
+    const angleRad = getRadFromAngle(angle);
     const rdmx = Math.floor(x + Math.cos(angleRad) * Math.random() * distanceBetweenPoints);
     const rdmy = Math.floor(y + Math.sin(angleRad) * Math.random() * distanceBetweenPoints);
 
     return {x: rdmx, y: rdmy, angle: angle};
 };
 
-const traceurs: any[]   = [];
+let traceurs: any[]   = [];
 
 function thisButNotZero(x: number): number {
-    if (x === 0) {
+    if (x <= 0) {
         return 1;
     } else {
         return x;
@@ -117,90 +122,25 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
     const canvasImgRef = useRef<HTMLDivElement>(null);
     const canvasDrawingRef = useRef<HTMLDivElement>(null);
     
+    let canvasDrawing: p5Types | null = null;
+
     let drawingTimeout: ReturnType<typeof setTimeout>;
     let imageTimeout: ReturnType<typeof setTimeout>;
 
+
     const sketchImg = (p: p5Types) => {
-        let img: ReturnType<typeof p.loadImage>;
-        
-        // StrokeWeight selector
-        const strokeWeightSelector: any = p.createSelect()
-        strokeWeightSelector.parent('strokeWeightCPD');
-        // strokeWeightSelector.position(CPDposition.x, CPDposition.y + CPDposition.spaceBetween);
-        weightStroke.map((weight) => {
-            strokeWeightSelector.option(weight.label);
-        });
-        strokeWeightSelector.selected(weightStroke[0].label);
+        function handleFile(file: any) {
+            const img = p.loadImage(file.data, () => {
+                img.resize(canvasImgRef.current!.clientWidth, 0);
+                p.createCanvas( img.width, img.height );
+                p.image(img, 0, 0);
+            });
+            
 
-        // Timebetween draw input
-        const timeBetweenDrawInput: any = p.createInput();
-        timeBetweenDrawInput.parent('timeBetweenDrawCPD');
-        timeBetweenDrawInput.addClass('inputNumberP5');
-        timeBetweenDrawInput.size(CPDposition.widthSize);
-        timeBetweenDrawInput.id('timeBetweenDraw');
-        timeBetweenDrawInput.attribute('type', 'number');
-        timeBetweenDrawInput.attribute('min', '0');
-
-        // timeBetweenDrawInput.position(CPDposition.x, CPDposition.y + 2 * CPDposition.spaceBetween);
-        timeBetweenDrawInput.value(timeBetweenDrawings.toString());
-
-        // Distance between points input
-        const distanceBetweenPointsInput: any = p.createInput();
-        distanceBetweenPointsInput.addClass('inputNumberP5');
-        distanceBetweenPointsInput.parent('distanceBetweenPointsCPD');
-        distanceBetweenPointsInput.size(CPDposition.widthSize);
-        distanceBetweenPointsInput.id('distance');
-        distanceBetweenPointsInput.attribute('type', 'number');
-        distanceBetweenPointsInput.attribute('min', '1');
-        // distanceBetweenPointsInput.position(CPDposition.x, CPDposition.y + 3 * CPDposition.spaceBetween);
-        distanceBetweenPointsInput.value(distanceBetweenPoints.toString());
-
-        // Openness input
-        const opennessInput: any = p.createInput();
-        opennessInput.addClass('inputNumberP5');
-        opennessInput.parent('opennessCPD');
-        opennessInput.size(CPDposition.widthSize);
-        opennessInput.id('openness');
-        opennessInput.attribute('type', 'number');
-        opennessInput.attribute('min', '0');
-        opennessInput.attribute('max', '360');
-
-        // opennessInput.position(CPDposition.x, CPDposition.y + 4 * CPDposition.spaceBetween);
-        opennessInput.value(openness.toString());
-
-        // Mode last input
-        const modeLastInput: any = p.createCheckbox('snake mode', true);
-        modeLastInput.id('last');
-        modeLastInput.parent('modeLastCPD');
-        // modeLastInput.position(CPDposition.x, CPDposition.y + 5 * CPDposition.spaceBetween);
-
-        // pixel or Line mode selector
-        const modeSelector: any = p.createSelect();
-        modeSelector.parent('modeCPD');
-        // modeSelector.position(CPDposition.x, CPDposition.y + 6 * CPDposition.spaceBetween);
-        modeSelector.option('pixel');
-        modeSelector.option('ear');
-        modeSelector.option('line');
-        modeSelector.selected('pixel');
-
-        // Play button
-        const playButton: any = p.createCheckbox('play', false);
-        playButton.id('play');
-        playButton.parent('playCPD');
-
-        //See annotations in JS for more information
-        p.preload = () => {
-            img = p.loadImage('./p5images/zoe.jpg');
-        };
-
-        p.setup = () => {
-            img.resize(0, canvasImgRef.current!.clientHeight);
-            p.createCanvas(img.width, img.height);
-            p.image(img, 0, 0);
             p.loadPixels();
 
             // insert a first point in traceurs then base on it
-            const initPoint =  toNeighbouringPoint(img.width/2, img.height/2, initAngle, openness, distanceBetweenPoints);
+            const initPoint = toNeighbouringPoint(img.width/2, img.height/2, initAngle, opennessInput.value(), distanceBetweenPointsInput.value());
             traceurs.push(
                 {
                     x: initPoint.x,
@@ -215,11 +155,206 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             );
             
             imageTimeout = setTimeout(() => {
-                    saveTraceurs();
+                    saveTraceurs(img);
             }, parseInt(timeBetweenDrawInput.value()));
+
+            loadDrawingCanvas(img);
+        };
+
+        function loadDrawingCanvas(img: any) {
+            const sketchDrawing = (p: p5Types) => {
+                let bChanged = false;
+                let ctx : ReturnType<typeof p.drawingContext>;
+                // Background color selector
+                const handleChangeBColor = () => {
+                    p.background(bColorSelector.value());
+                    bChanged = true;
+                };
+                const bColorSelector: any = p.createSelect();
+                bColorSelector.parent('bColorCPD');
+                colors.map((color) => {
+                    bColorSelector.option(color.label);
+                });
+                bColorSelector.selected('white');
+                bColorSelector.changed(() => {
+                    handleChangeBColor();
+                });
+
+
+                // Clear button
+                const clearButton: any = p.createButton('clear');
+                clearButton.parent('clearCPD');
+                clearButton.id('clear');
+                clearButton.mousePressed(() => {
+                    clearDrawing();
+                });
+        
+                p.setup = () => {
+                    img.resize(canvasImgRef.current!.clientWidth, canvasDrawingRef.current!.clientHeight);
+                    const cnv = p.createCanvas(img.width, img.height);
+                    cnv.mouseClicked(() => {
+                        saveSelfPixel();
+                    });
+                    ctx = p.drawingContext;
+                };
+        
+                p.draw = () => {
+                    if (bChanged) {
+        
+                        // if background color changed, redraw all points
+                        traceurs.map((currentTraceur, currentIndex) => {
+                            drawFromPoint(currentTraceur, currentIndex);
+                        });
+                        bChanged = false;
+                    }else{
+                        // if background color didn't change, only draw the last point
+                        drawFromPoint(traceurs[traceurs.length - 1], traceurs.length - 1);
+                    };
+                };
+        
+                function drawFromPoint(currentTraceur: any, currentIndex: any): void {
+                    if (currentTraceur.shape === 'pixel') {
+                        p.loadPixels();
+                        for (let i = -currentTraceur.size; i <= currentTraceur.size; i++) {
+                            for (let j = -currentTraceur.size; j <= currentTraceur.size; j++) {
+                                p.set(currentTraceur.x + i, currentTraceur.y + j, currentTraceur.color);
+                            };
+                        }
+                        p.updatePixels();
+        
+                    }else if (currentTraceur.shape === 'ear') {
+                        const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.angle, currentTraceur.openness, currentTraceur.distanceBetweenPoints);
+                        const nextTraceur = {
+                            x: nPoint.x,
+                            y: nPoint.y,
+                            color: p.get(nPoint.x, nPoint.y),
+                            angle: nPoint.angle,
+                            size: currentTraceur.size,
+                            shape: currentTraceur.shape
+                        };
+                        pairwise([currentTraceur, nextTraceur], drawLinePairwise);
+        
+                    }else if (currentTraceur.shape === 'line') {
+                        // Programm line draw
+                        const previousPoint = traceurs[currentIndex - 1];
+                        if (previousPoint) {
+                            drawLinePairwise(previousPoint, currentTraceur);
+                        };
+                    };
+                }
+        
+                function saveSelfPixel(): void {
+                    traceurs.push(
+                        {
+                            x: p.mouseX,
+                            y: p.mouseY,
+                            color: p.get(p.mouseX, p.mouseY),
+                            angle: traceurs[traceurs.length - 1].angle,
+                            size: traceurs[traceurs.length - 1].size,
+                            shape: 'pixel'
+                        }
+                    )
+                };
+        
+                function gradientLine(ctx: any, x1: number, y1: number, x2: number, y2: number, c1: number[], c2: number[]) {
+                    const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+                    const currentColor = p.color(c1);
+                    const nextColor = p.color(c2);
+        
+                    gradient.addColorStop(0, currentColor);
+                    gradient.addColorStop(1, nextColor);
+                    ctx.strokeStyle = gradient;
+        
+                    p.strokeWeight(traceurs[traceurs.length - 1].size);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke(); 
+                };
+        
+                function drawLinePairwise(current: Point, next: Point): void {
+                    gradientLine(ctx, current.x, current.y, next.x, next.y, current.color, next.color);
+                };
+        
+                function pairwise(arr: Array<Point>, func: Function, skips: number = 1): void{
+                    console.log(arr)
+                    for(var i=0; i < arr.length - skips; i++){
+                        console.log(arr[i], arr[i+skips]);
+                        func(arr[i], arr[i + skips])
+                    };
+                };
+
+                function clearDrawing(): void {
+                    p.background(bColorSelector.value());
+                    traceurs = [traceurs[0]];
+                };
+            };
+
+            canvasDrawing = new p5(sketchDrawing, canvasDrawingRef.current!);
         };
         
-        function saveTraceurs(): void {
+        let img: ReturnType<typeof p.loadImage>;
+
+        // StrokeWeight selector
+        const strokeWeightSelector: any = p.createSelect()
+        strokeWeightSelector.parent('strokeWeightCPD');
+        weightStroke.map((weight) => {
+            strokeWeightSelector.option(weight.label);
+        });
+        strokeWeightSelector.selected(weightStrokeInit);
+
+        // Timebetween draw input
+        const timeBetweenDrawInput: any = p.createInput();
+        timeBetweenDrawInput.parent('timeBetweenDrawCPD');
+        timeBetweenDrawInput.addClass('inputNumberP5');
+        timeBetweenDrawInput.size(CPDposition.widthSize);
+        timeBetweenDrawInput.id('timeBetweenDraw');
+        timeBetweenDrawInput.attribute('type', 'number');
+        timeBetweenDrawInput.attribute('min', '0');
+        timeBetweenDrawInput.value(timeBetweenDrawings.toString());
+
+        // Distance between points input
+        const distanceBetweenPointsInput: any = p.createSlider(1, 400, distanceBetweenPointsInit);
+        distanceBetweenPointsInput.addClass('inputNumberP5');
+        distanceBetweenPointsInput.parent('distanceBetweenPointsCPD');
+        distanceBetweenPointsInput.size(CPDposition.widthSize);
+        distanceBetweenPointsInput.id('distance');
+
+
+        // Openness input
+        const opennessInput: any = p.createSlider(1,360, opennessInit);
+        opennessInput.addClass('inputNumberP5');
+        opennessInput.parent('opennessCPD');
+        opennessInput.size(CPDposition.widthSize);
+        opennessInput.id('openness');
+
+
+        // Mode last input
+        const modeLastInput: any = p.createCheckbox('snake mode', true);
+        modeLastInput.id('last');
+        modeLastInput.parent('modeLastCPD');
+
+        // pixel or Line mode selector
+        const modeSelector: any = p.createSelect();
+        modeSelector.parent('modeCPD');
+        modeSelector.option('pixel');
+        modeSelector.option('ear');
+        modeSelector.option('line');
+        modeSelector.selected('pixel');
+
+        // Play button
+        const playButton: any = p.createCheckbox('play', false);
+        playButton.id('play');
+        playButton.parent('playCPD');
+
+        p.setup = () => {
+            // Image upload input
+            const fileInput = p.createFileInput(handleFile);
+            fileInput.id('fileInput');
+            fileInput.parent('fileInputCPD');
+        };
+        
+        function saveTraceurs(img: any): void {
             if (playButton.checked()) {
                 const chosenDistanceBetweenPoints = parseInt(distanceBetweenPointsInput.value());
                 const chosenOpenness = parseInt(opennessInput.value());
@@ -260,148 +395,27 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             };
 
             imageTimeout = setTimeout(() => {
-                saveTraceurs();
+                saveTraceurs(img);
             }, parseInt(timeBetweenDrawInput.value()));
         };
     };
 
     useEffect(() => {
         const canvasImg = new p5(sketchImg, canvasImgRef.current!);
+        // canvasImg.resizeCanvas(canvasImgRef.current!.clientWidth, canvasImgRef.current!.clientHeight);
+        // canvasDrawing?.resizeCanvas(canvasDrawingRef.current!.clientWidth, canvasDrawingRef.current!.clientHeight);
+
+        if (autoResizeToWindow) {
+            canvasImg.windowResized = () => {
+                canvasImg.resizeCanvas(canvasImgRef.current!.clientWidth, canvasImgRef.current!.clientHeight);
+            };
+        };
 
         return () => {
             canvasImg.remove();
         };
 
-    }, [ router.events ]);
-
-    const sketchDrawing = (p: p5Types) => {
-        let bChanged = false;
-        let ctx : ReturnType<typeof p.drawingContext>;
-        // Background color selector
-        const handleChangeBColor = () => {
-            p.background(bColorSelector.value());
-            bChanged = true;
-        };
-        const bColorSelector: any = p.createSelect();
-        bColorSelector.parent('bColorCPD');
-        // bColorSelector.position(CPDposition.x, CPDposition.y);
-        colors.map((color) => {
-            bColorSelector.option(color.label);
-        });
-        bColorSelector.selected('white');
-        bColorSelector.changed(() => {
-            handleChangeBColor();
-        });
-
-        let img: any;
-
-        //See annotations in JS for more information
-        p.preload = () => {
-            img = p.loadImage('./p5images/zoe.jpg');
-        };
-
-        p.setup = () => {
-            img.resize(0, canvasImgRef.current!.clientHeight);
-            const cnv = p.createCanvas(img.width, img.height);
-            cnv.mouseClicked(() => {
-                saveSelfPixel();
-            });
-            ctx = p.drawingContext;
-        };
-
-        p.draw = () => {
-            if (bChanged) {
-
-                // if background color changed, redraw all points
-                traceurs.map((currentTraceur, currentIndex) => {
-                    drawFromPoint(currentTraceur, currentIndex);
-                });
-                bChanged = false;
-            }else{
-                // if background color didn't change, only draw the last point
-                drawFromPoint(traceurs[traceurs.length - 1], traceurs.length - 1);
-            };
-        };
-
-        function drawFromPoint(currentTraceur: any, currentIndex: any): void {
-            if (currentTraceur.shape === 'pixel') {
-                p.loadPixels();
-                for (let i = -currentTraceur.size; i <= currentTraceur.size; i++) {
-                    for (let j = -currentTraceur.size; j <= currentTraceur.size; j++) {
-                        p.set(currentTraceur.x + i, currentTraceur.y + j, currentTraceur.color);
-                    };
-                }
-                p.updatePixels();
-            }else if (currentTraceur.shape === 'ear') {
-                const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.angle, currentTraceur.openness, currentTraceur.distanceBetweenPoints);
-                const nextTraceur = {
-                    x: nPoint.x,
-                    y: nPoint.y,
-                    color: p.get(nPoint.x, nPoint.y),
-                    angle: nPoint.angle,
-                    size: currentTraceur.size,
-                    shape: currentTraceur.shape
-                };
-                pairwise([currentTraceur, nextTraceur], drawLinePairwise);
-            }else if (currentTraceur.shape === 'line') {
-                // Programm line draw
-                const previousPoint = traceurs[currentIndex - 1];
-                if (previousPoint) {
-                    drawLinePairwise(previousPoint, currentTraceur);
-                };
-            };
-        }
-
-        function saveSelfPixel(): void {
-            traceurs.push(
-                {
-                    x: p.mouseX,
-                    y: p.mouseY,
-                    color: p.get(p.mouseX, p.mouseY),
-                    angle: traceurs[traceurs.length - 1].angle,
-                    size: traceurs[traceurs.length - 1].size,
-                    shape: 'pixel'
-                }
-            )
-        };
-
-        function gradientLine(ctx: any, x1: number, y1: number, x2: number, y2: number, c1: number[], c2: number[]) {
-            const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
-            const currentColor = p.color(c1);
-            const nextColor = p.color(c2);
-
-            gradient.addColorStop(0, currentColor);
-            gradient.addColorStop(1, nextColor);
-            ctx.strokeStyle = gradient;
-
-            p.strokeWeight(traceurs[traceurs.length - 1].size);
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke(); 
-        };
-
-        function drawLinePairwise(current: Point, next: Point): void {
-            gradientLine(ctx, current.x, current.y, next.x, next.y, current.color, next.color);
-        };
-
-        function pairwise(arr: Array<Point>, func: Function, skips: number = 1): void{
-            console.log(arr)
-            for(var i=0; i < arr.length - skips; i++){
-                console.log(arr[i], arr[i+skips]);
-                func(arr[i], arr[i + skips])
-            };
-        };
-    };
-
-    useEffect(() => {
-        const canvasDrawing = new p5(sketchDrawing, canvasDrawingRef.current!);
-
-        return () => {
-            canvasDrawing.remove();
-        };
-
-    }, [ router.events ]);
+    }, [ router.events, canvasImgRef ]);
 
     return (
         <>
@@ -411,22 +425,24 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 </div>
                 <div ref={canvasDrawingRef} className={styles.canvasContainer}>
                 </div>
-                <div className={styles.CPDControler}>
-                    <div id="playCPD" className={styles.CPDControlerItem}></div>
-                    <div id="bColorCPD">set background color : </div>
-                    <div id="strokeWeightCPD">set stroke weight : </div>
-                    <div id="distanceBetweenPointsCPD">set max distance between points : </div>
-                    <div id="timeBetweenDrawCPD">set time between draws (ms) : </div>
-                    <div id="modeCPD">set mode : </div>
-                    <div id="modeLastCPD"></div>
-                    <div id="opennessCPD">set scale of randomness of new angle : </div>
-                </div>
-                <div className={styles.CPDControler}>
+                <div className={styles.card}>
                     <p>
                         <a className="font-medium text-blue-600 dark:text-blue-500 hover:underline" href="https://p5js.org/">p5.js</a> - is a JS client-side library for creating graphic and interactive experiences, based on the core principles of Processing.
                         Changing the background with a lot of points can be slow, so be patient. Click on the drawing canvas to set new points.
                     </p>
                 </div> 
+                <div className={styles.card}>
+                    <div id="fileInputCPD"></div>
+                    <div id="playCPD"></div>
+                    <div id="strokeWeightCPD">set stroke weight : </div>
+                    <div id="distanceBetweenPointsCPD">set max distance between points : </div>
+                    <div id="timeBetweenDrawCPD">set time between draws (ms) : </div>
+                    <div id="modeCPD">set mode : </div>
+                    <div id="modeLastCPD"></div>
+                    <div id="opennessCPD">set scale of randomness of new angle (0 - 360°): </div>
+                    <div id="bColorCPD">set background color : </div>
+                    <div id="clearCPD"></div>
+                </div>
             </div>
         </section>
         </>
