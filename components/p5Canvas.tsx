@@ -101,6 +101,14 @@ function toNeighbouringPoint(x: number, y: number, previousAngle: number, openne
 
 const traceurs: any[]   = [];
 
+function thisButNotZero(x: number): number {
+    if (x === 0) {
+        return 1;
+    } else {
+        return x;
+    };
+};
+
 /**
  * A wrapper component for running P5 sketches. Handles rendering and cleanup.
  */
@@ -171,8 +179,14 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         modeSelector.parent('modeCPD');
         // modeSelector.position(CPDposition.x, CPDposition.y + 6 * CPDposition.spaceBetween);
         modeSelector.option('pixel');
+        modeSelector.option('ear');
         modeSelector.option('line');
         modeSelector.selected('pixel');
+
+        // Play button
+        const playButton: any = p.createCheckbox('play', false);
+        playButton.id('play');
+        playButton.parent('playCPD');
 
         //See annotations in JS for more information
         p.preload = () => {
@@ -196,52 +210,54 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     size: parseInt(strokeWeightSelector.value()),
                     shape: modeSelector.value(),
                     openness: parseInt(opennessInput.value()),
-                    distanceBetweenPoints: parseInt(distanceBetweenPointsInput.value()),
+                    distanceBetweenPoints: thisButNotZero(parseInt(distanceBetweenPointsInput.value())),
                 }
             );
-
+            
             imageTimeout = setTimeout(() => {
-                saveTraceurs();
+                    saveTraceurs();
             }, parseInt(timeBetweenDrawInput.value()));
         };
         
         function saveTraceurs(): void {
-            const chosenDistanceBetweenPoints = parseInt(distanceBetweenPointsInput.value());
-            const chosenOpenness = parseInt(opennessInput.value());
+            if (playButton.checked()) {
+                const chosenDistanceBetweenPoints = parseInt(distanceBetweenPointsInput.value());
+                const chosenOpenness = parseInt(opennessInput.value());
 
-            let nPoint: Point;
-            if( modeLastInput.checked() ) {
-                const lastPoint = traceurs[traceurs.length - 1];
-                nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
-                let threshold = 0;
-                while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
-                    console.log('entered while');
-                    nPoint.angle += Math.random() * 360;
-                    nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
-                    
-                    if (threshold++ > 1000) {
-                        nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
-                        break;
+                let nPoint: Point;
+                if( modeLastInput.checked() ) {
+                    const lastPoint = traceurs[traceurs.length - 1];
+                    nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
+                    let threshold = 0;
+                    while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
+                        console.log('entered while');
+                        nPoint.angle += Math.random() * 360;
+                        nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
+                        
+                        if (threshold++ > 1000) {
+                            nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
+                            break;
+                        };
+
                     };
-
+                }else{
+                    nPoint = toNeighbouringPoint(Math.random() * img.width, Math.random() * img.height, Math.random() * 360, chosenOpenness, chosenDistanceBetweenPoints);
                 };
-            }else{
-                nPoint = toNeighbouringPoint(Math.random() * img.width, Math.random() * img.height, Math.random() * 360, chosenOpenness, chosenDistanceBetweenPoints);
-            };
 
-            // See if i should implement ckecking if the point is already in the array
-            traceurs.push(
-                {
-                    x: nPoint.x,
-                    y: nPoint.y,
-                    color: p.get(nPoint.x, nPoint.y),
-                    angle: nPoint.angle,
-                    size: parseInt(strokeWeightSelector.value()),
-                    shape: modeSelector.value(),
-                    openness: parseInt(opennessInput.value()),
-                    distanceBetweenPoints: parseInt(distanceBetweenPointsInput.value()),
-                }
-            );
+                // See if i should implement ckecking if the point is already in the array
+                traceurs.push(
+                    {
+                        x: nPoint.x,
+                        y: nPoint.y,
+                        color: p.get(nPoint.x, nPoint.y),
+                        angle: nPoint.angle,
+                        size: parseInt(strokeWeightSelector.value()),
+                        shape: modeSelector.value(),
+                        openness: parseInt(opennessInput.value()),
+                        distanceBetweenPoints: thisButNotZero(parseInt(distanceBetweenPointsInput.value())),
+                    }
+                );
+            };
 
             imageTimeout = setTimeout(() => {
                 saveTraceurs();
@@ -295,17 +311,19 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
         p.draw = () => {
             if (bChanged) {
-                // i Leave map because before it was a list it still works like that
-                traceurs.map((currentTraceur) => {
-                    drawFromPoint(currentTraceur);
+
+                // if background color changed, redraw all points
+                traceurs.map((currentTraceur, currentIndex) => {
+                    drawFromPoint(currentTraceur, currentIndex);
                 });
                 bChanged = false;
             }else{
-                drawFromPoint(traceurs[traceurs.length - 1]);
+                // if background color didn't change, only draw the last point
+                drawFromPoint(traceurs[traceurs.length - 1], traceurs.length - 1);
             };
         };
 
-        function drawFromPoint(currentTraceur: any): void {
+        function drawFromPoint(currentTraceur: any, currentIndex: any): void {
             if (currentTraceur.shape === 'pixel') {
                 p.loadPixels();
                 for (let i = -currentTraceur.size; i <= currentTraceur.size; i++) {
@@ -314,7 +332,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     };
                 }
                 p.updatePixels();
-            }else{
+            }else if (currentTraceur.shape === 'ear') {
                 const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.angle, currentTraceur.openness, currentTraceur.distanceBetweenPoints);
                 const nextTraceur = {
                     x: nPoint.x,
@@ -325,6 +343,12 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     shape: currentTraceur.shape
                 };
                 pairwise([currentTraceur, nextTraceur], drawLinePairwise);
+            }else if (currentTraceur.shape === 'line') {
+                // Programm line draw
+                const previousPoint = traceurs[currentIndex - 1];
+                if (previousPoint) {
+                    drawLinePairwise(previousPoint, currentTraceur);
+                };
             };
         }
 
@@ -388,14 +412,21 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 <div ref={canvasDrawingRef} className={styles.canvasContainer}>
                 </div>
                 <div className={styles.CPDControler}>
+                    <div id="playCPD" className={styles.CPDControlerItem}></div>
                     <div id="bColorCPD">set background color : </div>
                     <div id="strokeWeightCPD">set stroke weight : </div>
                     <div id="distanceBetweenPointsCPD">set max distance between points : </div>
-                    <div id="timeBetweenDrawCPD">set time between draws : </div>
+                    <div id="timeBetweenDrawCPD">set time between draws (ms) : </div>
                     <div id="modeCPD">set mode : </div>
                     <div id="modeLastCPD"></div>
                     <div id="opennessCPD">set scale of randomness of new angle : </div>
-                </div>         
+                </div>
+                <div className={styles.CPDControler}>
+                    <p>
+                        <a className="font-medium text-blue-600 dark:text-blue-500 hover:underline" href="https://p5js.org/">p5.js</a> - is a JS client-side library for creating graphic and interactive experiences, based on the core principles of Processing.
+                        Changing the background with a lot of points can be slow, so be patient. Click on the drawing canvas to set new points.
+                    </p>
+                </div> 
             </div>
         </section>
         </>
