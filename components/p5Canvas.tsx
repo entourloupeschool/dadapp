@@ -116,7 +116,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         let img: ReturnType<typeof p.loadImage>;
         
         // StrokeWeight selector
-        const strokeWeightSelector = p.createSelect();
+        const strokeWeightSelector: any = p.createSelect()
         strokeWeightSelector.parent('strokeWeightCPD');
         // strokeWeightSelector.position(CPDposition.x, CPDposition.y + CPDposition.spaceBetween);
         weightStroke.map((weight) => {
@@ -125,7 +125,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         strokeWeightSelector.selected(weightStroke[0].label);
 
         // Timebetween draw input
-        const timeBetweenDrawInput = p.createInput();
+        const timeBetweenDrawInput: any = p.createInput();
         timeBetweenDrawInput.parent('timeBetweenDrawCPD');
         timeBetweenDrawInput.addClass('inputNumberP5');
         timeBetweenDrawInput.size(CPDposition.widthSize);
@@ -137,7 +137,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         timeBetweenDrawInput.value(timeBetweenDrawings.toString());
 
         // Distance between points input
-        const distanceBetweenPointsInput = p.createInput();
+        const distanceBetweenPointsInput: any = p.createInput();
         distanceBetweenPointsInput.addClass('inputNumberP5');
         distanceBetweenPointsInput.parent('distanceBetweenPointsCPD');
         distanceBetweenPointsInput.size(CPDposition.widthSize);
@@ -148,7 +148,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         distanceBetweenPointsInput.value(distanceBetweenPoints.toString());
 
         // Openness input
-        const opennessInput = p.createInput();
+        const opennessInput: any = p.createInput();
         opennessInput.addClass('inputNumberP5');
         opennessInput.parent('opennessCPD');
         opennessInput.size(CPDposition.widthSize);
@@ -161,13 +161,13 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         opennessInput.value(openness.toString());
 
         // Mode last input
-        const modeLastInput = p.createCheckbox('snake mode', true);
+        const modeLastInput: any = p.createCheckbox('snake mode', true);
         modeLastInput.id('last');
         modeLastInput.parent('modeLastCPD');
         // modeLastInput.position(CPDposition.x, CPDposition.y + 5 * CPDposition.spaceBetween);
 
         // pixel or Line mode selector
-        const modeSelector = p.createSelect();
+        const modeSelector: any = p.createSelect();
         modeSelector.parent('modeCPD');
         // modeSelector.position(CPDposition.x, CPDposition.y + 6 * CPDposition.spaceBetween);
         modeSelector.option('pixel');
@@ -256,7 +256,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasImg.remove();
         };
 
-    }, [ router.events, sketchImg ]);
+    }, [ router.events ]);
 
     const sketchDrawing = (p: p5Types) => {
         let bChanged = false;
@@ -266,7 +266,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             p.background(bColorSelector.value());
             bChanged = true;
         };
-        const bColorSelector = p.createSelect();
+        const bColorSelector: any = p.createSelect();
         bColorSelector.parent('bColorCPD');
         // bColorSelector.position(CPDposition.x, CPDposition.y);
         colors.map((color) => {
@@ -377,7 +377,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             canvasDrawing.remove();
         };
 
-    }, [ router.events, sketchDrawing ]);
+    }, [ router.events ]);
 
     return (
         <>
