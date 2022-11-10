@@ -132,11 +132,12 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         function handleFile(file: any) {
             const img = p.loadImage(file.data, () => {
                 img.resize(canvasImgRef.current!.clientWidth, 0);
-                p.createCanvas( img.width, img.height );
+                p.createCanvas(img.width, img.height);
                 p.image(img, 0, 0);
+                document.getElementById('imgDiv')!.style.height = img.height + 'px';
+                document.getElementById('drawingDiv')!.style.height = img.height + 'px';
             });
             
-
             p.loadPixels();
 
             // insert a first point in traceurs then base on it
@@ -180,7 +181,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     handleChangeBColor();
                 });
 
-
                 // Clear button
                 const clearButton: any = p.createButton('clear');
                 clearButton.parent('clearCPD');
@@ -188,19 +188,28 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 clearButton.mousePressed(() => {
                     clearDrawing();
                 });
+
+                // Save button
+                const saveButton: any = p.createButton('save');
+                saveButton.parent('saveCPD');
+                saveButton.id('save');
+                saveButton.mousePressed(() => {
+                    saveDrawing();
+                });
         
                 p.setup = () => {
-                    img.resize(canvasImgRef.current!.clientWidth, canvasDrawingRef.current!.clientHeight);
+                    img.resize(canvasDrawingRef.current!.clientWidth, 2 * canvasDrawingRef.current!.clientWidth);
+
                     const cnv = p.createCanvas(img.width, img.height);
                     cnv.mouseClicked(() => {
                         saveSelfPixel();
                     });
+
                     ctx = p.drawingContext;
                 };
         
                 p.draw = () => {
                     if (bChanged) {
-        
                         // if background color changed, redraw all points
                         traceurs.map((currentTraceur, currentIndex) => {
                             drawFromPoint(currentTraceur, currentIndex);
@@ -277,7 +286,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 };
         
                 function pairwise(arr: Array<Point>, func: Function, skips: number = 1): void{
-                    console.log(arr)
                     for(var i=0; i < arr.length - skips; i++){
                         console.log(arr[i], arr[i+skips]);
                         func(arr[i], arr[i + skips])
@@ -287,6 +295,11 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 function clearDrawing(): void {
                     p.background(bColorSelector.value());
                     traceurs = [traceurs[0]];
+                };
+
+                function saveDrawing(): void {
+                    const img = p.get();
+                    img.save('myDrawing', 'png');
                 };
             };
 
@@ -421,9 +434,9 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         <>
         <section>
             <div className={styles.gridedContainer}>
-                <div ref={canvasImgRef} className={styles.canvasContainer}>
+                <div ref={canvasImgRef} id="imgDiv" className={styles.canvasContainer}>
                 </div>
-                <div ref={canvasDrawingRef} className={styles.canvasContainer}>
+                <div ref={canvasDrawingRef} id="drawingDiv" className={styles.canvasContainer}>
                 </div>
                 <div className={styles.card}>
                     <p>
@@ -442,6 +455,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     <div id="opennessCPD">set scale of randomness of new angle (0 - 360°): </div>
                     <div id="bColorCPD">set background color : </div>
                     <div id="clearCPD"></div>
+                    <div id="saveCPD"></div>
                 </div>
             </div>
         </section>
