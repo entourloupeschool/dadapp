@@ -76,8 +76,7 @@ function getRadFromAngle(angle: number): number {
     return angle * (Math.PI/180);
 };
 
-// new Point not in the image ? -> new random point
-function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): nPoint {
+function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number, img: any): nPoint {
     const oPenness = Math.round(openness);
     let angle = Math.round(randGauss(previousAngle-oPenness, previousAngle+oPenness));
     if (angle > 360 || angle < 0) {
@@ -87,7 +86,11 @@ function toNeighbouringPoint(x: number, y: number, previousAngle: number, openne
     const rdmx = Math.floor(x + Math.cos(angleRad) * roundRdm(distanceBetweenPoints));
     const rdmy = Math.floor(y + Math.sin(angleRad) * roundRdm(distanceBetweenPoints));
 
-    return {x: rdmx, y: rdmy, angle: angle};
+    if (rdmx < 0 || rdmy < 0 || rdmx > img.width || rdmy > img.height) {
+        return toNeighbouringPoint(x, y, previousAngle, openness + 180, distanceBetweenPoints, img);
+    } else {
+        return {x: rdmx, y: rdmy, angle: angle};
+    };
 };
 
 let traceurs: any[]   = [];
@@ -141,6 +144,16 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             }, parseInt(timeBetweenDrawInput.value()));
 
             loadDrawingCanvas(img);
+        };
+
+        function getGrey(x: number, y: number, img: any): number {
+            const color = img.get(x, y);
+            const r = p.red(color);
+            const g = p.green(color);
+            const b = p.blue(color);
+            const brightness = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+
+            return brightness;
         };
 
         function loadDrawingCanvas(img: any) {
@@ -207,21 +220,53 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                         drawFromPoint(traceurs[traceurs.length - 1], traceurs.length - 1);
                     };
                 };
+
+                function findAGreyEnoughPoint(nP: Point, img: any): any{
+                    const sizeNeighbourhood = parseInt(neighbourZoneSizeSlider.value());
+                    const chosenOpenness = parseInt(opennessSlider.value());
+
+                    let pGrey = getGrey(nP.x, nP.y, img);
+                    let xy = {x: nP.x, y: nP.y};
+                    let i = 10;
+
+                    while (i > 0) {
+                        const chosenPoint = toNeighbouringPoint(nP.x, nP.y, nP.a, chosenOpenness, sizeNeighbourhood, img);
+                        const nGrey = getGrey(chosenPoint.x, chosenPoint.y, img);
+                        if (nGrey > pGrey){
+                            xy = {
+                                x: chosenPoint.x,
+                                y: chosenPoint.y,
+                            };
+
+                            pGrey = nGrey;
+                        };
+
+                        i--;
+                    };
+            
+                    return {
+                        x: xy.x,
+                        y: xy.y,
+                        c: img.get(xy.x, xy.y),
+                        si: nP.si,
+                        a: nP.a
+                    };
+                };
         
                 function drawFromPoint(currentTraceur: Point, currentIndex: number): void {
                     console.log('entered drawing context');
                     if (currentTraceur.sh === 'p') {
-                        p.loadPixels();
-                        for (let i = -currentTraceur.si; i <= currentTraceur.si; i++) {
-                            for (let j = -currentTraceur.si; j <= currentTraceur.si; j++) {
-                                p.set(currentTraceur.x + i, currentTraceur.y + j, currentTraceur.c);
-                            };
-                        }
-                        p.updatePixels();
+                        p.stroke(currentTraceur.c);
+                        p.fill(currentTraceur.c);
+                        p.square(currentTraceur.x, currentTraceur.y, currentTraceur.si);
         
                     }else if (currentTraceur.sh === 'e') {
-                        const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.a, opennessInput.value(), distanceBetweenPointsInput.value());
-                        const nextTraceur = objectFromPoint(nPoint);
+                        const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.a, parseInt(opennessSlider.value()), parseInt(distanceBetweenPointsInput.value()), img);
+                        const nextTraceur = {
+                            x: nPoint.x,
+                            y: nPoint.y,
+                            si: currentTraceur.si,
+                        };
 
                         pairwise([currentTraceur, nextTraceur], drawLinePairwise);
         
@@ -230,6 +275,27 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                         const previousPoint = traceurs[currentIndex - 1];
                         if (previousPoint) {
                             drawLinePairwise(previousPoint, currentTraceur);
+                        };
+
+                    }else if (currentTraceur.sh === 'c') {
+                        // Programm circle draw
+                        p.stroke(currentTraceur.c);
+                        p.fill(currentTraceur.c);
+                        p.circle(currentTraceur.x, currentTraceur.y, currentTraceur.si);
+
+                    }else if (currentTraceur.sh === 'g') {
+                        // Programm greyFind draw
+                        let currentHeadSnake = currentTraceur;
+
+                        let snakeSizeCPD = parseInt(snakeSizeSlider.value());
+                        while (snakeSizeCPD > 0) {
+                            let nextPoint = findAGreyEnoughPoint(currentHeadSnake, img);
+                            if (nextPoint.x === currentHeadSnake.x && nextPoint.y === currentHeadSnake.y ) {
+                                break;
+                            };
+                            drawLinePairwise(currentHeadSnake, nextPoint);
+                            currentHeadSnake = nextPoint;
+                            snakeSizeCPD--;
                         };
                     };
                 }
@@ -263,20 +329,20 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     ctx.stroke(); 
                 };
         
-                function drawLinePairwise(current: Point, next: Point): void {
+                function drawLinePairwise(current: any, next: any): void {
                     gradientLine(ctx, current.x, current.y, next.x, next.y, current.c, next.c);
                 };
         
-                function pairwise(arr: Array<Point>, func: Function, skips: number = 1): void{
+                function pairwise(arr: Array<any>, func: Function, skips: number = 1): void{
                     for(var i=0; i < arr.length - skips; i++){
                         func(arr[i], arr[i + skips])
                     };
                 };
 
                 function clearDrawing(): void {
-                    p.background(bColorPicker.value());
                     // Cannot COMPLETLY CLEAR CANVAS
                     traceurs = [traceurs[0]];
+                    p.background(bColorPicker.value());
                 };
 
                 function saveDrawing(): void {
@@ -295,31 +361,23 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         strokeWeightSelector.parent('strokeWeightCPD');
         strokeWeightSelector.id('strokeWeightSelector');
         
-        // Timebetween draw input
-        const timeBetweenDrawInput: any = p.createInput();
+        // Timebetween draw slider
+        const timeBetweenDrawInput: any = p.createSlider(20, 1000, timeBetweenDrawings);
         timeBetweenDrawInput.parent('timeBetweenDrawCPD');
-        timeBetweenDrawInput.addClass('inputNumberP5');
-        timeBetweenDrawInput.size(CPDposition.widthSize);
         timeBetweenDrawInput.id('timeBetweenDraw');
-        timeBetweenDrawInput.attribute('type', 'number');
-        timeBetweenDrawInput.attribute('min', '0');
-        timeBetweenDrawInput.value(timeBetweenDrawings.toString());
+
 
         // Distance between points input
         const distanceBetweenPointsInput: any = p.createSlider(1, 400, distanceBetweenPointsInit);
         distanceBetweenPointsInput.addClass('inputNumberP5');
         distanceBetweenPointsInput.parent('distanceBetweenPointsCPD');
-        distanceBetweenPointsInput.size(CPDposition.widthSize);
         distanceBetweenPointsInput.id('distance');
 
-
         // Openness input
-        const opennessInput: any = p.createSlider(1,360, opennessInit);
-        // opennessInput.addClass('inputNumberP5');
-        opennessInput.parent('opennessCPD');
-        opennessInput.size(CPDposition.widthSize);
-        opennessInput.id('openness');
-
+        const opennessSlider: any = p.createSlider(1,360, opennessInit);
+        // opennessSlider.addClass('inputNumberP5');
+        opennessSlider.parent('opennessCPD');
+        opennessSlider.id('openness');
 
         // Mode last input
         const modeLastInput: any = p.createCheckbox('snake mode', true);
@@ -332,12 +390,25 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         modeSelector.option('pixel');
         modeSelector.option('ear');
         modeSelector.option('line');
+        modeSelector.option('greyfind');
+        modeSelector.option('circle');
         modeSelector.selected('pixel');
 
         // Play button
         const playButton: any = p.createCheckbox('play', false);
         playButton.id('play');
         playButton.parent('playCPD');
+
+        // neighbour zone Size slider
+        const neighbourZoneSizeSlider: any = p.createSlider(3, 30, 5);
+        neighbourZoneSizeSlider.parent('neighbourZoneSizeCPD');
+        neighbourZoneSizeSlider.id('neighbourZoneSize');
+
+        // snake size slider
+        const snakeSizeSlider: any = p.createSlider(100, 4000, 400);
+        snakeSizeSlider.parent('snakeSizeCPD');
+        snakeSizeSlider.id('snakeSize');
+        
 
         p.setup = () => {
             // Image upload input
@@ -349,28 +420,14 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         function saveTraceurs(img: any): void {
             if (playButton.checked()) {
                 const chosenDistanceBetweenPoints = Math.round(distanceBetweenPointsInput.value());
-                const chosenOpenness = Math.round(opennessInput.value());
+                const chosenOpenness = parseInt(opennessSlider.value());
 
                 let nPoint: nPoint;
                 if( modeLastInput.checked() ) {
                     const lastPoint = traceurs[traceurs.length - 1];
-                    nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.a, chosenOpenness, chosenDistanceBetweenPoints);
-                    let threshold = 0;
-                    while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
-                        console.log('entered while');
-                        nPoint.angle += roundRdm(360);
-                        nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
-                        
-                        if (threshold++ > 1000) {
-                            console.log('entered threshold');
-                            console.log(traceurs);
-                            nPoint = toNeighbouringPoint(img.width/2, img.height/2, nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
-                            break;
-                        };
-
-                    };
+                    nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.a, chosenOpenness, chosenDistanceBetweenPoints, img);
                 }else{
-                    nPoint = toNeighbouringPoint(roundRdm(img.width), roundRdm(img.height), roundRdm(360), chosenOpenness, chosenDistanceBetweenPoints);
+                    nPoint = toNeighbouringPoint(roundRdm(img.width), roundRdm(img.height), roundRdm(360), chosenOpenness, chosenDistanceBetweenPoints, img);
                 };
 
                 // See if i should implement ckecking if the point is already in the array
@@ -396,10 +453,9 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
         return () => {
             canvasImg.remove();
-
         };
 
-    }, [ router.events, canvasImgRef, canvasDrawingRef, autoResizeToWindow ]);
+    }, [ router.events, canvasImgRef, autoResizeToWindow ]);
 
     return (
         <>
@@ -419,10 +475,12 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     <div id="playCPD"></div>
                     <div id="strokeWeightCPD">set stroke weight : </div>
                     <div id="distanceBetweenPointsCPD">set max distance between points : </div>
-                    <div id="timeBetweenDrawCPD">set time between draws (ms) : </div>
+                    <div id="timeBetweenDrawCPD">set time between draws : </div>
                     <div id="modeCPD">set mode : </div>
                     <div id="modeLastCPD"></div>
                     <div id="opennessCPD">set scale of randomness of new angle (0 - 360°): </div>
+                    <div id="snakeSizeCPD">set snake size : </div>
+                    <div id="neighbourZoneSizeCPD">neighbour zone scale : </div>
                 </div> 
                 <div className={styles.card}>
                     <div id="bColorCPD">set background color : </div>
