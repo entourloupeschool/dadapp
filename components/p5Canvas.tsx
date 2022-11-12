@@ -40,6 +40,10 @@ interface P5WrapperProps {
     children?: ReactNode | HTMLElement;
 };
 
+function isProbable(num1: number, num2: number): boolean {
+    return Math.random() < num1 / num2;
+}
+
 function roundRdm(num: number){
     return Math.round(Math.random() * num);
 };
@@ -232,7 +236,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     while (i > 0) {
                         const chosenPoint = toNeighbouringPoint(nP.x, nP.y, nP.a, chosenOpenness, sizeNeighbourhood, img);
                         const nGrey = getGrey(chosenPoint.x, chosenPoint.y, img);
-                        if (nGrey > pGrey){
+                        if (isProbable(pGrey, nGrey)) {
                             xy = {
                                 x: chosenPoint.x,
                                 y: chosenPoint.y,
@@ -341,7 +345,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
                 function clearDrawing(): void {
                     // Cannot COMPLETLY CLEAR CANVAS
-                    traceurs = [traceurs[0]];
+                    traceurs = [traceurs[traceurs.length - 1]];
                     p.background(bColorPicker.value());
                 };
 
