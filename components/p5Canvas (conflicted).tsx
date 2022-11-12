@@ -5,11 +5,11 @@ import styles from '../styles/Home.module.css';
 import p5Types from 'p5';
 import { useRouter } from 'next/router';
 
-const timeBetweenDrawings: number = roundRdm(300) + 1;
-const distanceBetweenPointsInit: number = roundRdm(390) + 1;
-const initAngle: number = roundRdm(360);
-const opennessInit: number = roundRdm(350) + 1;
-const weightStrokeInit: number = roundRdm(16) + 1;
+const timeBetweenDrawings: number = Math.floor(Math.random() * 300) + 1;
+const distanceBetweenPointsInit: number = Math.floor(Math.random() * 390) + 1;
+const initAngle: number = Math.floor(Math.random() * 360);
+const opennessInit: number = Math.floor(Math.random() * 350) + 1;
+const weightStrokeInit: number = Math.floor(Math.random() * 16) + 1;
 const colorInit: string = 'white';
 
 const CPDposition = {
@@ -40,9 +40,7 @@ interface P5WrapperProps {
     children?: ReactNode | HTMLElement;
 };
 
-function roundRdm(num: number){
-    return Math.round(Math.random() * num);
-};
+function roundRdm(num: number, Gauss)
 
 function randGauss(min:number, max:number, skew=1) {
     let u = 0, v = 0;
@@ -78,14 +76,13 @@ function getRadFromAngle(angle: number): number {
 
 // new Point not in the image ? -> new random point
 function toNeighbouringPoint(x: number, y: number, previousAngle: number, openness: number, distanceBetweenPoints: number): nPoint {
-    const oPenness = Math.round(openness);
-    let angle = Math.round(randGauss(previousAngle-oPenness, previousAngle+oPenness));
+    let angle = Math.round(randGauss(previousAngle-openness, previousAngle+openness));
     if (angle > 360 || angle < 0) {
        angle = Math.round(getCorrectAngle(angle)); 
     };
     const angleRad = getRadFromAngle(angle);
-    const rdmx = Math.floor(x + Math.cos(angleRad) * roundRdm(distanceBetweenPoints));
-    const rdmy = Math.floor(y + Math.sin(angleRad) * roundRdm(distanceBetweenPoints));
+    const rdmx = Math.floor(x + Math.cos(angleRad) * Math.random() * distanceBetweenPoints);
+    const rdmy = Math.floor(y + Math.sin(angleRad) * Math.random() * distanceBetweenPoints);
 
     return {x: rdmx, y: rdmy, angle: angle};
 };
@@ -126,12 +123,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
             p.loadPixels();
 
             // insert a first point in traceurs then base on it
-            const initPoint = {
-                x: roundRdm(img.width), 
-                y: roundRdm(img.height), 
-                angle: initAngle
-            };
-
+            const initPoint = toNeighbouringPoint(img.width/2, img.height/2, initAngle, opennessInput.value(), distanceBetweenPointsInput.value());
             traceurs.push(
                 objectFromPoint(initPoint)
             );
@@ -166,7 +158,10 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 formatSelector.id('formatSelector');
                 formatSelector.option('png');
                 formatSelector.option('jpg');
+                formatSelector.option('gif');
+                formatSelector.option('svg');
                 formatSelector.selected('png');
+
 
                 // Clear button
                 const clearButton: any = p.createButton('clear');
@@ -209,7 +204,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 };
         
                 function drawFromPoint(currentTraceur: Point, currentIndex: number): void {
-                    console.log('entered drawing context');
                     if (currentTraceur.sh === 'p') {
                         p.loadPixels();
                         for (let i = -currentTraceur.si; i <= currentTraceur.si; i++) {
@@ -220,7 +214,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                         p.updatePixels();
         
                     }else if (currentTraceur.sh === 'e') {
-                        const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.a, opennessInput.value(), distanceBetweenPointsInput.value());
+                        const nPoint = toNeighbouringPoint(currentTraceur.x, currentTraceur.y, currentTraceur.a, parseInt(opennessInput.value()), parseInt(distanceBetweenPointsInput.value()));
                         const nextTraceur = objectFromPoint(nPoint);
 
                         pairwise([currentTraceur, nextTraceur], drawLinePairwise);
@@ -235,7 +229,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                 }
         
                 function saveSelfPixel(): void {
-                    console.log('saveSelfPixel');
                     const nPoint = {
                         x: p.mouseX, 
                         y: p.mouseY, 
@@ -244,7 +237,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
                     traceurs.push(
                         objectFromPoint(nPoint)
-                    );
+                    )
                 };
         
                 function gradientLine(ctx: any, x1: number, y1: number, x2: number, y2: number, c1: number[], c2: number[]): void {
@@ -269,6 +262,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         
                 function pairwise(arr: Array<Point>, func: Function, skips: number = 1): void{
                     for(var i=0; i < arr.length - skips; i++){
+                        console.log(arr[i], arr[i+skips]);
                         func(arr[i], arr[i + skips])
                     };
                 };
@@ -284,8 +278,6 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
                     img.save('myDrawing', formatSelector.value());
                 };
             };
-
-            const canvasDrawing = new p5(sketchDrawing, canvasDrawingRef.current!);
         };
         
         let img: ReturnType<typeof p.loadImage>;
@@ -348,17 +340,17 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
         
         function saveTraceurs(img: any): void {
             if (playButton.checked()) {
-                const chosenDistanceBetweenPoints = Math.round(distanceBetweenPointsInput.value());
-                const chosenOpenness = Math.round(opennessInput.value());
+                const chosenDistanceBetweenPoints = parseInt(distanceBetweenPointsInput.value());
+                const chosenOpenness = parseInt(opennessInput.value());
 
                 let nPoint: nPoint;
                 if( modeLastInput.checked() ) {
                     const lastPoint = traceurs[traceurs.length - 1];
-                    nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.a, chosenOpenness, chosenDistanceBetweenPoints);
+                    nPoint = toNeighbouringPoint(lastPoint.x, lastPoint.y, lastPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
                     let threshold = 0;
                     while (nPoint.x < 0 || nPoint.x > img.width || nPoint.y > img.height || nPoint.y < 0) {
                         console.log('entered while');
-                        nPoint.angle += roundRdm(360);
+                        nPoint.angle += Math.random() * 360;
                         nPoint = toNeighbouringPoint(nPoint.x, nPoint.y,  nPoint.angle, chosenOpenness, chosenDistanceBetweenPoints);
                         
                         if (threshold++ > 1000) {
@@ -370,7 +362,7 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
                     };
                 }else{
-                    nPoint = toNeighbouringPoint(roundRdm(img.width), roundRdm(img.height), roundRdm(360), chosenOpenness, chosenDistanceBetweenPoints);
+                    nPoint = toNeighbouringPoint(Math.round(Math.random() * img.width), Math.round(Math.random() * img.height), Math.random() * 360, chosenOpenness, chosenDistanceBetweenPoints);
                 };
 
                 // See if i should implement ckecking if the point is already in the array
@@ -387,6 +379,8 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
     useEffect(() => {
         const canvasImg = new p5(sketchImg, canvasImgRef.current!);
+        // canvasImg.resizeCanvas(canvasImgRef.current!.clientWidth, canvasImgRef.current!.clientHeight);
+        // canvasDrawing?.resizeCanvas(canvasDrawingRef.current!.clientWidth, canvasDrawingRef.current!.clientHeight);
 
         if (autoResizeToWindow) {
             canvasImg.windowResized = () => {
@@ -396,18 +390,17 @@ const P5Wrapper = ({ autoResizeToWindow = true, children}: P5WrapperProps): JSX.
 
         return () => {
             canvasImg.remove();
-
         };
 
-    }, [ router.events, canvasImgRef, canvasDrawingRef, autoResizeToWindow ]);
+    }, [ router.events, canvasImgRef ]);
 
     return (
         <>
         <section>
             <p>
                 <a className="font-medium text-blue-600 dark:text-blue-500 hover:underline" href="https://p5js.org/">p5.js</a> - is a JS client-side library for creating graphic and interactive experiences, based on the core principles of Processing.
-                <br></br>Click on the drawing canvas to set new points. Changing the background with a lot of points can be slow, so be patient.
-
+                <br></br>Changing the background with a lot of points can be slow, so be patient.
+                <br></br>Click on the drawing canvas to set new points.
             </p>
             <div className={styles.gridedContainer}>
                 <div ref={canvasImgRef} id="imgDiv" className={styles.canvasContainer}>
